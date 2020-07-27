@@ -15,6 +15,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.urls import include
 
 
 #Login Functionality
@@ -26,4 +27,5 @@ urlpatterns = [
     path('accounts/logout/', auth_views.LogoutView.as_view(), 
           name='logout'),
     path('admin/', admin.site.urls),
+    path('course/', include('courses.urls')),
 ]
