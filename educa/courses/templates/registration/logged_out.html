@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Logged out{% endblock %}
 {% block content %}
+    <div class="container">
+  <div class="row">
+    <div class="col-sm">
   <h1>Logged out</h1>
   <div class="module">
     <p>You have been successfully logged out.
-       You can <a href="{% url "login" %}">log-in again</a>.</p>
+       You can <br><br><a href="{% url "login" %}">Student log-in again</a>.</p>
+      <a href="{% url 'manage_course_list' %}" class="right">Instructor log-in again</a>
   </div>
+  <section><br><br><br><br></section>
+    </div></div></div>
 {% endblock %}

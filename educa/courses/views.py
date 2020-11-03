@@ -1,27 +1,29 @@
-from django.shortcuts import render
-
-# Create your views here.
-from django.urls import reverse_lazy
-from django.views.generic.list import ListView
-from django.views.generic.edit import CreateView, UpdateView, \
-                                      DeleteView
-from .models import Course
-
-# USER Login Mixins
-from django.contrib.auth.mixins import LoginRequiredMixin, \
-                                       PermissionRequiredMixin
-
-from django.shortcuts import redirect, get_object_or_404
-from django.views.generic.base import TemplateResponseMixin, View
-from .forms import ModuleFormSet
-
-#Adding content type in VIEW
-from django.forms.models import modelform_factory
-from django.apps import apps
-from .models import Module, Content
-
-#Adding Drag and Drop functionality Module
 from braces.views import CsrfExemptMixin, JsonRequestResponseMixin
+from django.apps import apps
+from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin, \
+    PermissionRequiredMixin
+from django.db.models import Count
+from django.forms.models import modelform_factory
+from django.shortcuts import redirect, get_object_or_404, render
+# Mixin Views
+from django.urls import reverse_lazy
+from django.views.generic.base import TemplateResponseMixin, View
+from django.views.generic.detail import DetailView
+from django.views.generic.edit import CreateView, UpdateView, \
+    DeleteView
+from django.views.generic.list import ListView
+from students.forms import CourseEnrollForm
+
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
+import datetime
+
+from .forms import ModuleFormSet
+from .models import Course
+from .models import Module, Content
+from .models import Subject
+
 
 class OwnerMixin(object):
     def get_queryset(self):
@@ -33,29 +35,25 @@ class OwnerEditMixin(object):
         form.instance.owner = self.request.user
         return super().form_valid(form)
 
-class OwnerCourseMixin(OwnerMixin,LoginRequiredMixin,
+
+class OwnerCourseMixin(OwnerMixin,
+                       LoginRequiredMixin,
                        PermissionRequiredMixin):
     model = Course
     fields = ['subject', 'title', 'slug', 'overview']
     success_url = reverse_lazy('manage_course_list')
 
+
 class OwnerCourseEditMixin(OwnerCourseMixin, OwnerEditMixin):
     template_name = 'courses/manage/course/form.html'
 
 class ManageCourseListView(OwnerCourseMixin, ListView):
-    model = Course
     template_name = 'courses/manage/course/list.html'
     permission_required = 'courses.view_course'
-    def get_queryset(self):
-        qs = super().get_queryset()
-        return qs.filter(owner=self.request.user)
-
 class CourseCreateView(OwnerCourseEditMixin, CreateView):
     permission_required = 'courses.add_course'
-
 class CourseUpdateView(OwnerCourseEditMixin, UpdateView):
     permission_required = 'courses.change_course'
-
 class CourseDeleteView(OwnerCourseMixin, DeleteView):
     template_name = 'courses/manage/course/delete.html'
     permission_required = 'courses.delete_course'
@@ -81,8 +79,7 @@ class CourseModuleUpdateView(TemplateResponseMixin, View):
             formset.save()
             return redirect('manage_course_list')
         return self.render_to_response({'course': self.course,
-                                        'formset': formset})	
-
+                                        'formset': formset})
 
 class ContentCreateUpdateView(TemplateResponseMixin, View):
     module = None
@@ -100,7 +97,6 @@ class ContentCreateUpdateView(TemplateResponseMixin, View):
                                                  'created',
                                                  'updated'])
         return Form(*args, **kwargs)
-
     def dispatch(self, request, module_id, model_name, id=None):
         self.module = get_object_or_404(Module,
                                        id=module_id,
@@ -115,24 +111,24 @@ class ContentCreateUpdateView(TemplateResponseMixin, View):
     def get(self, request, module_id, model_name, id=None):
         form = self.get_form(self.model, instance=self.obj)
         return self.render_to_response({'form': form,
-                                    'object': self.obj})
+                                        'object': self.obj})
 
     def post(self, request, module_id, model_name, id=None):
         form = self.get_form(self.model,
-                         instance=self.obj,
-                         data=request.POST,
-                         files=request.FILES)
+                             instance=self.obj,
+                             data=request.POST,
+                             files=request.FILES)
         if form.is_valid():
-          obj = form.save(commit=False)
-          obj.owner = request.user
-          obj.save()
-          if not id:
-            # new content
-            Content.objects.create(module=self.module,
-                                   item=obj)
+            obj = form.save(commit=False)
+            obj.owner = request.user
+            obj.save()
+            if not id:
+                # new content
+                Content.objects.create(module=self.module,
+                                       item=obj)
             return redirect('module_content_list', self.module.id)
-          return self.render_to_response({'form': form,
-                                    'object': self.obj})
+        return self.render_to_response({'form': form,
+                                        'object': self.obj})
 
 class ContentDeleteView(View):
     def post(self, request, id):
@@ -170,4 +166,98 @@ class ContentOrderView(CsrfExemptMixin,
                        module__course__owner=request.user) \
                        .update(order=order)
         return self.render_json_response({'saved': 'OK'})
+
+
+class CourseListView(TemplateResponseMixin, View):
+    model = Course
+    template_name = 'courses/course/list.html'
+    def get(self, request, subject=None):
+        subjects = Subject.objects.annotate(
+                       total_courses=Count('courses'))
+        courses = Course.objects.annotate(
+                       total_modules=Count('modules'))
+        if subject:
+            subject = get_object_or_404(Subject, slug=subject)
+            courses = courses.filter(subject=subject)
+        return self.render_to_response({'subjects': subjects,
+                                        'subject': subject,
+                                        'courses': courses})
+
+class CourseDetailView(DetailView):
+    model = Course
+    template_name = 'courses/course/detail.html'
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['enroll_form'] = CourseEnrollForm(
+            initial={'course': self.object})
+        return context
+
+
+class StudentCourseListView(LoginRequiredMixin, ListView):
+    model = Course
+    template_name = 'students/course/list.html'
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.filter(students__in=[self.request.user])
+
+def register(request):
+    if request.user.is_authenticated:
+        return redirect('djangobin:profile', username=request.user.username)
+
+    if request.method == 'POST':
+        f = UserCreationForm(request.POST)
+        if f.is_valid():
+            f.save()
+            messages.success(request, 'Account created successfully')
+            return redirect('register')
+
+    else:
+        f = UserCreationForm()
+
+    return render(request, 'courses/register.html', {'form': f})
+#@login_required
+def dashboard(request):
+    return render(request,
+                  'courses/dashboard.html',
+                  {'section': 'dashboard'})
+
+def register(request):
+
+    if request.user.is_authenticated:
+        return redirect('courses:profile', username=request.user.username)
+
+    if request.method == 'POST':
+        f = UserCreationForm(request.POST)
+        if f.is_valid():
+            f.save()
+            messages.success(request, 'Account created successfully')
+            return redirect('register')
+
+    else:
+        f = UserCreationForm()
+
+    return render(request, 'registration/register.html', {'form': f})
+
+
+from .forms import LoginForm, UserRegistrationForm
+def register(request):
+    if request.method == 'POST':
+        user_form = UserRegistrationForm(request.POST)
+        if user_form.is_valid():
+            # Create a new user object but avoid saving it yet
+            new_user = user_form.save(commit=False)
+            # Set the chosen password
+            new_user.set_password(
+                user_form.cleaned_data['password'])
+            # Save the User object
+            new_user.save()
+            return render(request,
+                          'registration/register_done.html',
+                          {'new_user': new_user})
+    else:
+        user_form = UserRegistrationForm()
+    return render(request,
+                  'registration/register.html',
+                  {'user_form': user_form})
+
 

@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Delete course{% endblock %}
 {% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-sm">
   <h1>Delete course "{{ object.title }}"</h1>
   <div class="module">
     <form action="" method="post">
@@ -9,4 +12,5 @@
       <input type="submit" value="Confirm">
     </form>
   </div>
+    </div></div></div>
 {% endblock %}

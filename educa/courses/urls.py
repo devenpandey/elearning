@@ -1,5 +1,8 @@
+from django.template.context_processors import request
 from django.urls import path
+
 from . import views
+
 urlpatterns = [
     path('mine/',
          views.ManageCourseListView.as_view(),
@@ -34,4 +37,15 @@ urlpatterns = [
     path('content/order/',
      views.ContentOrderView.as_view(),
      name='content_order'),
+    path('subject/<slug:subject>/',
+     views.CourseListView.as_view(),
+     name='course_list_subject'),
+    path('<slug:slug>/',
+     views.CourseDetailView.as_view(),
+     name='course_detail'),
+    path('', views.dashboard, name='dashboard'),
+    path('register/', views.register, name='register'),
+    #path('about/', views.register, name='about'),
+    #path('contact/', views.register, name='contact'),
+    #path('news/', views.register, name='news'),
 ]
