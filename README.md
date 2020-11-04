@@ -20,6 +20,13 @@ pip install "Django==3.0.*"
 ```
 pip install Pillow==7.0.0
 ```
+
+- Alternatively , use - below command to install all dependencies with the following command:
+
+```
+pip install -r requirements.txt
+```
+
 - Create a new project using the following command:
 
 ```
